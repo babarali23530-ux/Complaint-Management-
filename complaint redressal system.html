@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DC Office Swabi - Management System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #0f172a;
+            --accent: #2563eb;
+            --bg: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            display: flex;
+        }
+
+        /* SIDEBAR - Hidden on Print */
+        .sidebar {
+            width: 240px;
+            height: 100vh;
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            position: fixed;
+            box-sizing: border-box;
+        }
+
+        .sidebar h3 { border-bottom: 1px solid #334155; padding-bottom: 10px; margin-top: 0; }
+
+        .menu {
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: 0.3s;
+            background: #1e293b;
+        }
+
+        .menu:hover { background: var(--accent); }
+
+        /* MAIN CONTENT */
+        .main {
+            margin-left: 240px;
+            width: 100%;
+            padding: 25px;
+            box-sizing: border-box;
+        }
+
+        /* FORM STYLING */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .full-width { grid-column: 1 / -1; }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* PROFESSIONAL TABLE */
+        .table-container {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th {
+            background: #f1f5f9;
+            color: #475569;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 12px 10px;
+            font-size: 13px;
+        }
+
+        tr:nth-child(even) { background: #f8fafc; }
+
+        /* DASHBOARD CARDS */
+        .cards { display: flex; gap: 15px; margin-bottom: 20px; }
+        .card {
+            flex: 1;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .pending { border-top: 4px solid #ef4444; color: #ef4444; }
+        .resolved { border-top: 4px solid #22c55e; color: #22c55e; }
+
+        /* PRINT SETTINGS */
+        @media print {
+            .sidebar, .cards, .btn, .form-grid, .search-box, .action-cell {
+                display: none !important;
+            }
+            .main { margin: 0; padding: 0; width: 100%; }
+            table { width: 100%; border: 1px solid black; }
+            th, td { border: 1px solid black !important; padding: 5px; font-size: 10pt; }
+            body { background: white; }
+            .print-header { display: block !important; text-align: center; margin-bottom: 20px; }
+        }
+
+        .print-header { display: none; }
+
+        /* MODAL */
+        .overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; z-index:99; }
+        .popup { position: fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; display:none; z-index:100; min-width:300px; }
+
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h3>DC OFFICE SWABI</h3>
+    <div class="menu" onclick="window.print()">Print Official List</div>
+    <div class="menu" onclick="exportExcel()">Export to Excel</div>
+    <div class="menu" onclick="backup()">Download Backup</div>
+</div>
+
+<div class="main">
+    <div class="print-header">
+        <h2>DISTRICT ADMINISTRATION SWABI</h2>
+        <p>Official Record List - Generated on <span id="printDate"></span></p>
+    </div>
+
+    <div class="cards">
+        <div class="card pending">Pending: <span id="pCount">0</span></div>
+        <div class="card resolved">Resolved: <span id="rCount">0</span></div>
+        <div class="card">Total Entries: <span id="tCount">0</span></div>
+    </div>
+
+    <div class="form-grid">
+        <h3 class="full-width" style="margin:0">New Entry</h3>
+        <input id="name" placeholder="Name">
+        <input id="fname" placeholder="Father Name">
+        <input id="cnic" placeholder="CNIC No.">
+        <input id="mobile" placeholder="Mobile No.">
+        <input id="address" placeholder="Address" class="full-width">
+        
+        <select id="markTo" onchange="toggleCustom(this.value)">
+            <option value="">Marked To...</option>
+            <option>ADC</option>
+            <option>AC</option>
+            <option>AAC</option>
+            <option>Tehsildar</option>
+            <option>Patwari</option>
+            <option>Branch of DC Office</option>
+            <option value="Other">Other Department</option>
+        </select>
+        
+        <input id="otherDept" placeholder="Enter Department Name" style="display:none">
+        
+        <button class="btn" onclick="addRecord()">Save Record</button>
+    </div>
+
+    <input type="text" class="search-box" placeholder="Search by Name, CNIC, or Department..." onkeyup="search(this.value)" style="margin-bottom:15px; padding:12px;">
+
+    <div class="table-container">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th>Sr.</th>
+                    <th>Name</th>
+                    <th>Father Name</th>
+                    <th>CNIC</th>
+                    <th>Mobile</th>
+                    <th>Address</th>
+                    <th>Marked To</th>
+                    <th>Status</th>
+                    <th class="action-cell">Action</th>
+                </tr>
+            </thead>
+            <tbody id="tb"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePop()"></div>
+<div class="popup" id="pop">
+    <h3>Update Status</h3>
+    <select id="newStatus">
+        <option>Pending</option>
+        <option>Resolved</option>
+    </select>
+    <br><br>
+    <button class="btn" onclick="updateStatus()">Update</button>
+    <button class="btn" style="background:#64748b" onclick="deleteRecord()">Delete</button>
+</div>
+
+<script>
+    const DB_KEY = "dc_swabi_records_v3";
+    let activeId = null;
+
+    document.getElementById('printDate').innerText = new Date().toLocaleDateString();
+
+    function toggleCustom(val) {
+        document.getElementById('otherDept').style.display = (val === 'Other') ? 'block' : 'none';
+    }
+
+    function getDB() { return JSON.parse(localStorage.getItem(DB_KEY)) || []; }
+    function saveDB(data) { localStorage.setItem(DB_KEY, JSON.stringify(data)); render(); }
+
+    function addRecord() {
+        const name = document.getElementById('name').value;
+        const fname = document.getElementById('fname').value;
+        const cnic = document.getElementById('cnic').value;
+        const mobile = document.getElementById('mobile').value;
+        const address = document.getElementById('address').value;
+        let mark = document.getElementById('markTo').value;
+
+        if(mark === 'Other') mark = document.getElementById('otherDept').value;
+
+        if(!name || !cnic) return alert("Name and CNIC are mandatory");
+
+        const records = getDB();
+        const newEntry = {
+            id: Date.now(),
+            name, fname, cnic, mobile, address, mark,
+            status: "Pending",
+            date: new Date().toLocaleDateString()
+        };
+
+        records.push(newEntry);
+        saveDB(records);
+        
+        // Reset Form
+        ['name','fname','cnic','mobile','address','otherDept'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('markTo').value = '';
+    }
+
+    function render() {
+        const data = getDB();
+        const tbody = document.getElementById('tb');
+        let html = "";
+        let p = 0, r = 0;
+
+        data.forEach((item, index) => {
+            if(item.status === "Pending") p++; else r++;
+            
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td><b>${item.name}</b></td>
+                    <td>${item.fname}</td>
+                    <td>${item.cnic}</td>
+                    <td>${item.mobile}</td>
+                    <td>${item.address}</td>
+                    <td>${item.mark}</td>
+                    <td style="color:${item.status==='Pending'?'#ef4444':'#22c55e'}; font-weight:bold">${item.status}</td>
+                    <td class="action-cell"><button class="btn" style="padding:5px 10px; font-size:11px" onclick="openPop(${item.id})">Edit</button></td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+        document.getElementById('pCount').innerText = p;
+        document.getElementById('rCount').innerText = r;
+        document.getElementById('tCount').innerText = data.length;
+    }
+
+    function openPop(id) {
+        activeId = id;
+        document.getElementById('pop').style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
+    }
+
+    function closePop() {
+        document.getElementById('pop').style.display = 'none';
+        document.getElementById('overlay').style.display = 'none';
+    }
+
+    function updateStatus() {
+        let data = getDB();
+        const status = document.getElementById('newStatus').value;
+        data = data.map(x => x.id === activeId ? {...x, status} : x);
+        saveDB(data);
+        closePop();
+    }
+
+    function deleteRecord() {
+        if(!confirm("Are you sure?")) return;
+        let data = getDB();
+        data = data.filter(x => x.id !== activeId);
+        saveDB(data);
+        closePop();
+    }
+
+    function search(q) {
+        q = q.toLowerCase();
+        const rows = document.querySelectorAll("#tb tr");
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(q) ? "" : "none";
+        });
+    }
+
+    function exportExcel() {
+        const data = getDB().map(x => ({
+            "Name": x.name,
+            "Father Name": x.fname,
+            "CNIC": x.cnic,
+            "Mobile": x.mobile,
+            "Address": x.address,
+            "Marked To": x.mark,
+            "Status": x.status
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Records");
+        XLSX.writeFile(wb, "DC_Office_Swabi_Records.xlsx");
+    }
+
+    function backup() {
+        const blob = new Blob([JSON.stringify(getDB())], {type: "application/json"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `backup_${new Date().getTime()}.json`;
+        a.click();
+    }
+
+    // Initialize
+    render();
+</script>
+
+</body>
+</html>
